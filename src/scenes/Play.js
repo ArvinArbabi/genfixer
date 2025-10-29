@@ -1,292 +1,238 @@
 class Play extends Phaser.Scene {
-    constructor() {
-        super("playScene");
+  constructor() {
+    super("playScene");
+  }
+
+  preload() {
+    this.load.setPath("assets");
+    this.load.image("generator", "Generator.png");
+    this.load.spritesheet("Blast", "Fire_Blast.png", {
+      frameWidth: 400,
+      frameHeight: 400
+    });
+
+    // Sounds
+    this.load.audio("boomSound", "BOOM.mp3");
+    this.load.audio("repairSound", "repair.mp3");
+  }
+
+  create() {
+    const { width, height } = this.scale;
+
+    this.TIME_LIMIT_MS = 3000;
+    this.TARGET_SCORE = 15;
+    this.P1_KEYS = ["A", "S", "D"];
+    this.P2_KEYS = ["J", "K", "L"];
+
+    // ---- UI Elements ----
+    this.uiElements = [];
+
+    const title = this.add.text(width / 2, 55, "GENFIXER", {
+      fontSize: "72px",
+      color: "#ffffff",
+      fontStyle: "bold",
+      fontFamily: "monospace",
+    }).setOrigin(0.5);
+
+    const subtitle = this.add.text(width / 2, 115, "A Competitive Generator Repair Game", {
+      fontSize: "22px",
+      color: "#cccccc",
+    }).setOrigin(0.5);
+
+    this.uiElements.push(title, subtitle);
+
+    // ---- Labels / Divider ----
+    this.add.text(width * 0.25, 250, "Player 1", { fontSize: "28px", color: "#ff8080" }).setOrigin(0.5);
+    this.add.text(width * 0.75, 250, "Player 2", { fontSize: "28px", color: "#80b3ff" }).setOrigin(0.5);
+    this.add.rectangle(width / 2, height / 2, 6, height * 0.82, 0x333845).setOrigin(0.5);
+
+    // ---- Explosion animation ----
+    if (!this.anims.exists("blast_once")) {
+      this.anims.create({
+        key: "blast_once",
+        frames: this.anims.generateFrameNumbers("Blast", { start: 7, end: 9 }),
+        frameRate: 16,
+        repeat: 0,
+      });
     }
 
-    preload() {
-        this.load.image('idleItem', 'assets/hammy.png');
-        this.load.image('movingItem', 'assets/ham.png');
-        this.load.spritesheet('Blast', 'assets/Fire_Blast.png', {
-            frameWidth: 400,
-            frameHeight: 400
-        });
-        this.load.audio('ding', 'assets/Point.mp3');
-        this.load.audio('hamsterboom', 'assets/hamsterboom.mp3');
-        this.load.audio('explosion', 'assets/BOOM.mp3');
-        this.load.audio('song', 'assets/song1.mp3');
+    const barY = 420;
+
+    this.p1 = {
+      score: 0,
+      required: "",
+      deadline: null,
+      scoreText: this.add.text(width * 0.25, 300, "P1: 0", { fontSize: "42px", color: "#ff8080" }).setOrigin(0.5),
+      promptText: this.add.text(width * 0.25, 360, "Press: -", { fontSize: "34px", color: "#ffffff" }).setOrigin(0.5),
+      barBg: this.add.rectangle(width * 0.25, barY, 500, 18, 0x2a2f3a).setOrigin(0.5),
+      bar: this.add.rectangle(width * 0.25 - 250, barY, 500, 18, 0x29d458).setOrigin(0, 0.5),
+      gen: null,
+      boom: null,
+    };
+
+    this.p2 = {
+      score: 0,
+      required: "",
+      deadline: null,
+      scoreText: this.add.text(width * 0.75, 300, "P2: 0", { fontSize: "42px", color: "#80b3ff" }).setOrigin(0.5),
+      promptText: this.add.text(width * 0.75, 360, "Press: -", { fontSize: "34px", color: "#ffffff" }).setOrigin(0.5),
+      barBg: this.add.rectangle(width * 0.75, barY, 500, 18, 0x2a2f3a).setOrigin(0.5),
+      bar: this.add.rectangle(width * 0.75 - 250, barY, 500, 18, 0x29d458).setOrigin(0, 0.5),
+      gen: null,
+      boom: null,
+    };
+
+    // ---- Generators ----
+    const srcImg = this.textures.get("generator").getSourceImage();
+    const targetWidth = 220;
+    const genScale = targetWidth / srcImg.width;
+    this.explosionScale = targetWidth / 400;
+
+    this.p1.gen = this.add.image(width * 0.25, barY + 150, "generator").setOrigin(0.5).setScale(genScale);
+    this.p2.gen = this.add.image(width * 0.75, barY + 150, "generator").setOrigin(0.5).setScale(genScale);
+
+    const tip = this.add.text(width / 2, height - 60, "Press your key when shown. Timers begin on first input!", {
+      fontSize: "22px",
+      color: "#dddddd",
+    }).setOrigin(0.5);
+    this.uiElements.push(tip);
+
+    // ---- State ----
+    this.gameOver = false;
+    this.started = false;
+    this.exploded = false;
+
+    this.setPrompt("P1");
+    this.setPrompt("P2");
+    this.p1.bar.width = this.p1.barBg.width;
+    this.p2.bar.width = this.p2.barBg.width;
+
+    // ---- Input & Sound ----
+    this.input.keyboard.on("keydown", (e) => this.onKeyDown(e));
+
+    this.boomSfx = this.sound.add("boomSound", { volume: 0.7 });
+    this.repairSfx = this.sound.add("repairSound", { volume: 0.6 });
+  }
+
+  // ==== Helpers ====
+  randFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  setPrompt(player) {
+    const p = player === "P1" ? this.p1 : this.p2;
+    const keys = player === "P1" ? this.P1_KEYS : this.P2_KEYS;
+    p.required = this.randFrom(keys);
+    p.promptText.setText("Press: " + p.required);
+    p.bar.fillColor = 0x29d458;
+  }
+
+  armBothTimers() {
+    const now = this.time.now;
+    this.p1.deadline = now + this.TIME_LIMIT_MS;
+    this.p2.deadline = now + this.TIME_LIMIT_MS;
+    this.p1.bar.width = this.p1.barBg.width;
+    this.p2.bar.width = this.p2.barBg.width;
+  }
+
+  resetTimer(p) {
+    const now = this.time.now;
+    if (p === "P1") this.p1.deadline = now + this.TIME_LIMIT_MS;
+    else this.p2.deadline = now + this.TIME_LIMIT_MS;
+  }
+
+  checkWin(p) {
+    if (p === "P1" && this.p1.score >= this.TARGET_SCORE)
+      return this.endGame("Player 1 fixed their generator! 🛠️", 300);
+    if (p === "P2" && this.p2.score >= this.TARGET_SCORE)
+      return this.endGame("Player 2 fixed their generator! 🛠️", 300);
+    return false;
+  }
+
+  explode(side) {
+    if (this.exploded) return;
+    this.exploded = true;
+
+    const obj = side === "P1" ? this.p1 : this.p2;
+    if (obj.gen) obj.gen.setVisible(false);
+
+    obj.boom = this.add.sprite(obj.gen.x, obj.gen.y, "Blast")
+      .setOrigin(0.5)
+      .setScale(this.explosionScale)
+      .setDepth(10);
+
+    obj.boom.play("blast_once");
+    this.boomSfx.play();
+  }
+
+  onKeyDown(e) {
+    if (this.gameOver) return;
+    const key = (e.key || "").toUpperCase();
+    const isP1 = this.P1_KEYS.includes(key);
+    const isP2 = this.P2_KEYS.includes(key);
+    if (!isP1 && !isP2) return;
+
+    if (!this.started) {
+      this.started = true;
+      this.armBothTimers();
     }
 
-    create() {
-        const w = this.cameras.main.width;
-        const h = this.cameras.main.height;
-
-        // panels and buttons
-        this.panel1 = this.add.rectangle((w / 4) - 40, h * 0.75, 155, 75, 0x808080);
-        this.panel2 = this.add.rectangle((w * 0.75) + 40, h * 0.75, 155, 75, 0x808080);
-        this.share1 = this.add.rectangle((w / 4) - 75, h * 0.75, 50, 50, 0xff2c2c);
-        this.steal1 = this.add.rectangle(w / 4, h * 0.75, 50, 50, 0xff2c2c);
-        this.share2 = this.add.rectangle(w * 0.75, h * 0.75, 50, 50, 0xff2c2c);
-        this.steal2 = this.add.rectangle((w * 0.75) + 75, h * 0.75, 50, 50, 0xff2c2c);
-
-        this.keyShare1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-        this.keySteal1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-        this.keyShare2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K);
-        this.keySteal2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L);
-
-        //ui 
-        this.add.text(this.share1.x, this.share1.y, 'Share', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        this.add.text(this.share1.x, this.share1.y - 50, 'A', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        this.add.text(this.steal1.x, this.steal1.y, 'Steal', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        this.add.text(this.steal1.x, this.steal1.y - 50, 'S', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        this.add.text(this.share2.x, this.share2.y, 'Share', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        this.add.text(this.share2.x, this.share2.y - 50, 'K', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        this.add.text(this.steal2.x, this.steal2.y, 'Steal', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        this.add.text(this.steal2.x, this.steal2.y - 50, 'L', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-
-        // handss
-        this.p1Choice = null;
-        this.p2Choice = null;
-        this.reseting = false;
-        this.timerWasPaused = false;
-
-        //animations
-        this.anims.create({
-            key: 'Boom',
-            frames: this.anims.generateFrameNumbers('Blast', { start: 7, end: 9 }),
-            frameRate: 15,
-            repeat: 0
-        });
-
-        //more numbersa
-        this.hamsterPool = Phaser.Math.Between(5, 25); // total hamsters available
-        this.p1Steals = 0;
-        this.p2Steals = 0;
-        this.minHamsters = 1;
-        this.maxHamsters = 3;
-
-        //display text
-        // for testing
-        // this.poolText = this.add.text(w / 2, h * 0.9, `Hamsters left: ${this.hamsterPool}`, { fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
-        this.scoreText = this.add.text(w / 2, h * 0.15, `P1 Steals: 0 | P2 Steals: 0`, { fontSize: '20px', color: '#ffffff' }).setOrigin(0.5);
-
-        
-        this.TEN_SECONDS = 10001;
-        this.countdownTimer = this.time.addEvent({
-            delay: this.TEN_SECONDS,
-            callback: () => { console.log("Time's up! Both players failed to choose in time."); },
-            callbackScope: this
-        });
-        this.displayTimer = this.add.text(w / 2, h * 0.1, `${this.getTimeInSeconds()}`, {
-            fontSize: '32px',
-            color: '#ffffff'
-        }).setOrigin(0.5);
-
-        this.music = this.sound.add('song', { loop: true, volume: 0.5 });
-        this.music.play();
-
-        // amount of hamsters
-        this.hamsters = [];
-        this.spawnHamsters();
+    if (isP1) {
+      if (key === this.p1.required) {
+        this.p1.score++;
+        this.p1.scoreText.setText("P1: " + this.p1.score);
+        this.repairSfx.play(); // ✅ Correct input sound
+        if (this.checkWin("P1")) return;
+        this.setPrompt("P1");
+        this.resetTimer("P1");
+      } else {
+        this.explode("P1");
+        this.endGame(`Player 1 pressed the wrong key (needed ${this.p1.required}).`, 800);
+      }
+    } else if (isP2) {
+      if (key === this.p2.required) {
+        this.p2.score++;
+        this.p2.scoreText.setText("P2: " + this.p2.score);
+        this.repairSfx.play(); // ✅ Correct input sound
+        if (this.checkWin("P2")) return;
+        this.setPrompt("P2");
+        this.resetTimer("P2");
+      } else {
+        this.explode("P2");
+        this.endGame(`Player 2 pressed the wrong key (needed ${this.p2.required}).`, 800);
+      }
     }
+  }
 
-    update() {
-        if (this.countdownTimer.paused && !this.timerWasPaused) {
-            if (this.music.isPlaying) this.music.stop();
-            this.timerWasPaused = true;
-        } else if (!this.countdownTimer.paused && this.timerWasPaused) {
-            if (!this.music.isPlaying) this.music.play({ loop: true });
-            this.timerWasPaused = false;
-        }
+  update() {
+    if (this.gameOver || !this.started) return;
+    const now = this.time.now;
 
-        if (this.p1Choice && this.p2Choice) {
-            this.countdownTimer.paused = true;
-        }
+    const handleTimer = (p, side) => {
+      const fullW = p.barBg.width;
+      const rem = Math.max(0, (p.deadline ?? 0) - now);
+      const frac = Phaser.Math.Clamp(rem / this.TIME_LIMIT_MS, 0, 1);
+      p.bar.width = fullW * frac;
+      p.bar.fillColor = frac < 0.33 ? 0xff5d5d : frac < 0.66 ? 0xffd166 : 0x29d458;
+      if (rem === 0) this.endGame(`${side} timed out (needed ${p.required}).`);
+    };
 
-        if (!this.countdownTimer.paused) {
-            this.displayTimer.setText(`${this.getTimeInSeconds()}`);
-        }
+    handleTimer(this.p1, "Player 1");
+    handleTimer(this.p2, "Player 2");
+  }
 
-        if (this.countdownTimer.getRemaining() <= 0 && !this.countdownTimer.paused) {
-            this.countdownTimer.paused = true;
-            endCondition = "timer";
-            this.scene.start("endScene");
-        }
+  endGame(msg, delay = 300) {
+    if (this.gameOver) return;
+    this.gameOver = true;
 
-        if (Phaser.Input.Keyboard.JustDown(this.keyShare1) && !this.p1Choice) {
-            this.share1.fillColor = 0x008000;
-            this.p1Choice = "share";
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.keySteal1) && !this.p1Choice) {
-            this.steal1.fillColor = 0x008000;
-            this.p1Choice = "steal";
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.keyShare2) && !this.p2Choice) {
-            this.share2.fillColor = 0x008000;
-            this.p2Choice = "share";
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.keySteal2) && !this.p2Choice) {
-            this.steal2.fillColor = 0x008000;
-            this.p2Choice = "steal";
-        }
+    // 🧹 Clear any lingering title/subtitle/tip text
+    this.uiElements.forEach(el => el.destroy());
+    this.uiElements = [];
 
-        if (this.p1Choice && this.p2Choice && !this.reseting) {
-            this.reseting = true;
-            this.sound.play('hamsterboom');
-            this.time.addEvent({
-                delay: 1000,
-                callback: () => { this.evaluateChoices(); },
-                callbackScope: this
-            });
-        }
-    }
-    // helper to sapwn theses guys in
-    spawnHamsters() {
-        this.hamsters.forEach(h => h.destroy());
-        this.hamsters = [];
-
-        const numHamsters = Phaser.Math.Between(this.minHamsters, this.maxHamsters);
-        const spacing = this.cameras.main.width / (numHamsters + 1);
-        const y = this.cameras.main.height / 2;
-
-        for (let i = 0; i < numHamsters; i++) {
-            const x = spacing * (i + 1) + Phaser.Math.Between(-20, 20);
-            const ham = this.add.sprite(x, y, 'idleItem').setOrigin(0.5).setDepth(10).setScale(1);
-            this.hamsters.push(ham);
-        }
-
-        this.currentHamsterCount = numHamsters;
-    }
-
-    evaluateChoices() {
-        this.hamsterPool -= this.currentHamsterCount;
-        // for testing
-        // if (this.hamsterPool < 0) this.hamsterPool = 0;
-        // this.poolText.setText(`Hamsters left: ${this.hamsterPool}`);
-
-        if (this.hamsterPool <= 0) {
-            endCondition = "outofhamsters";
-            this.scene.start("endScene");
-            return;
-        }
-
-        if (this.p1Choice === "share" && this.p2Choice === "share") {
-            this.sound.play('explosion');
-            this.hamsters.forEach(h => {
-                h.setAlpha(0);
-                const explosion = this.add.sprite(h.x, h.y, 'Blast').setScale(0.8).setDepth(20);
-                if (this.anims.exists('Boom')) explosion.play('Boom');
-                explosion.on('animationcomplete', () => {
-                    explosion.destroy();
-                    h.setAlpha(1).setTexture('movingItem');
-                    this.sound.play('ding');
-                    h.setPosition(this.cameras.main.width / 2, -100);
-                    h.setScale(0.3);
-                    h.setRotation(Phaser.Math.DegToRad(180));
-
-                    this.tweens.add({
-                        targets: h,
-                        y: this.cameras.main.height / 2,
-                        scale: 1,
-                        rotation: 0,
-                        ease: 'Bounce',
-                        duration: 800,
-                        onComplete: () => { h.setTexture('idleItem'); }
-                    });
-                });
-            });
-
-        } else if (this.p1Choice === "steal" && this.p2Choice === "share") {
-            this.p1Steals += this.currentHamsterCount;
-            this.scoreText.setText(`P1 Steals: ${this.p1Steals} | P2 Steals: ${this.p2Steals}`);
-            this.moveHamstersTo("p1");
-
-        } else if (this.p1Choice === "share" && this.p2Choice === "steal") {
-            this.p2Steals += this.currentHamsterCount;
-            this.scoreText.setText(`P1 Steals: ${this.p1Steals} | P2 Steals: ${this.p2Steals}`);
-            this.moveHamstersTo("p2");
-
-        } else if (this.p1Choice === "steal" && this.p2Choice === "steal") {
-            this.tweens.add({
-                targets: this.hamsters,
-                alpha: 0,
-                duration: 500,
-                onComplete: () => {
-                    this.hamsters.forEach(h => h.destroy());
-                    endCondition = "greed";
-                    this.scene.start('endScene');
-                }
-            });
-        }
-        if (this.hamsterPool <= 0) {
-            this.registry.set('p1Steals', this.p1Steals);
-            this.registry.set('p2Steals', this.p2Steals);
-            endCondition = "outofhamsters";
-            this.scene.start("endScene");
-            return;
-        }
-
-
-        this.time.addEvent({
-            delay: 1500,
-            callback: () => this.reset(),
-            callbackScope: this
-        });
-    }
-
-    moveHamstersTo(player) {
-        const targetY = this.cameras.main.height * 0.75;
-        const targetX = (player === "p1") ? this.share1.x : this.share2.x;
-        const flip = (player === "p1");
-
-        this.sound.play('ding');
-
-        this.hamsters.forEach(h => {
-            // switch to the moving texture
-            h.setTexture('movingItem');
-
-            const angle = Phaser.Math.Angle.Between(h.x, h.y, targetX, targetY);
-            h.setRotation(angle);
-            h.flipY = flip;
-
-            this.tweens.add({
-                targets: h,
-                x: targetX,
-                y: targetY,
-                duration: 500,
-                ease: "Power5",
-                scale: 0.2,
-                onComplete: () => {
-                    h.flipY = false;
-                    // back to idle when they arrive
-                    h.setTexture('idleItem');
-                    h.setRotation(0);
-                    h.setScale(1);
-                }
-            });
-        });
-    }
-
-
-    getTimeInSeconds() {
-        return Math.ceil(this.countdownTimer.getRemaining() / 1000);
-    }
-
-    reset() {
-        this.share1.fillColor = 0xff2c2c;
-        this.steal1.fillColor = 0xff2c2c;
-        this.share2.fillColor = 0xff2c2c;
-        this.steal2.fillColor = 0xff2c2c;
-
-        this.p1Choice = null;
-        this.p2Choice = null;
-        this.reseting = false;
-
-        this.spawnHamsters();
-
-        this.countdownTimer.reset({
-            delay: this.TEN_SECONDS,
-            callback: () => { console.log("Time's up! Both players failed to choose in time."); },
-            callbackScope: this,
-        });
-    }
+    this.time.delayedCall(delay, () => {
+      this.scene.start("gameEndScene", {
+        msg,
+        p1: this.p1.score,
+        p2: this.p2.score,
+      });
+    });
+  }
 }

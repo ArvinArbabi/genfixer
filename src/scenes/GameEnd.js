@@ -1,119 +1,41 @@
 class GameEnd extends Phaser.Scene {
-    constructor() {
-        super("endScene")
+  constructor() {
+    super("gameEndScene");
+  }
+
+  init(data) {
+    this.msg = data.msg || "Game Over!";
+    this.p1 = data.p1 ?? 0;
+    this.p2 = data.p2 ?? 0;
+  }
+
+  create() {
+    const { width, height } = this.scale;
+
+    this.add.text(width/2, height*0.35, this.msg, {
+      fontSize: "56px",
+      color: "#ffcc00"
+    }).setOrigin(0.5);
+
+    this.add.text(width/2, height*0.5, `Final Score  —  P1: ${this.p1}   P2: ${this.p2}`, {
+      fontSize: "28px",
+      color: "#ffffff"
+    }).setOrigin(0.5);
+
+    this.add.text(width/2, height*0.7, "SPACE: Restart   •   M: Main Menu", {
+      fontSize: "22px",
+      color: "#bbbbbb"
+    }).setOrigin(0.5);
+
+    this.keySpace = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.keyM = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+  }
+
+  update() {
+    if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+      this.scene.start("playScene");
+    } else if (Phaser.Input.Keyboard.JustDown(this.keyM)) {
+      this.scene.start("menuScene");
     }
-
-    create() {
-        const w = this.cameras.main.width;
-        const h = this.cameras.main.height;
-        this.fadeDuration = 0;
-        this.sceneText = this.add.text(w / 2, h / 4, '', {
-            fontSize: '16px',
-            color: '#ffffff'
-        }).setOrigin(0.5).setAlpha(0);
-
-        if (endCondition === "greed") {
-            this.greedEnding();
-        } 
-        else if (endCondition === "timer") {
-            this.sceneText.setText("Time's up!").setAlpha(1);
-            endCondition = "";
-        }
-        else if (endCondition === "outofhamsters") {
-            this.hamsterPoolEnding();
-        } 
-        else {
-            this.add.text(w / 2, h / 3, 'Hullo?', {
-                fontSize: '16px',
-                color: '#ffffff'
-            }).setOrigin(0.5);
-        }
-    }
-
-
-    update() {
-
-    }
-
-    phaseText() {
-        this.tweens.add({
-            targets: this.sceneText,
-            alpha: 1,
-            duration: this.fadeDuration,
-            onComplete: () => {
-                this.tweens.add({
-                    targets: this.sceneText,
-                    alpha: 0,
-                    duration: this.fadeDuration,
-                });
-            }
-        });
-    }
-
-    greedEnding() {
-        this.fadeDuration = 4000;
-        this.sceneText.setText('Your greed has doomed us all...')
-        this.phaseText()
-        setTimeout(() => {
-            this.sceneText.setText("Fires rampage through every major city in the world...")
-            this.phaseText()
-        }, this.fadeDuration * 2);
-        setTimeout(() => {
-            this.sceneText.setText("Natural ecosystems crumble, taking with them, countless lives...")
-            this.phaseText()
-        }, this.fadeDuration * 4);
-        this.phaseText()
-        setTimeout(() => {
-            this.sceneText.setText("Was it worth it?")
-            this.phaseText()
-        }, this.fadeDuration * 6);
-        endCondition = ""
-        //Cue world exploding
-    }
-
-        hamsterPoolEnding() {
-            const w = this.cameras.main.width;
-            const h = this.cameras.main.height;
-            this.fadeDuration = 2000;
-
-            let winnerMessage = "";
-            if (this.registry.get('p1Steals') > this.registry.get('p2Steals')) {
-                winnerMessage = "Player 1 Wins!";
-            } else if (this.registry.get('p2Steals') > this.registry.get('p1Steals')) {
-                winnerMessage = "Player 2 Wins!";
-            } else {
-                winnerMessage = "It's a Tie!";
-            }
-
-            // Show winner first
-            this.sceneText.setText(winnerMessage);
-            this.phaseText();
-
-            // After fadeDuration, show a recap of both players' totals
-            setTimeout(() => {
-                const recapText = `Final Scores:\nP1: ${this.registry.get('p1Steals')} hamsters\nP2: ${this.registry.get('p2Steals')} hamsters`;
-                this.sceneText.setText(recapText);
-                this.phaseText();
-            }, this.fadeDuration * 2);
-            
-
-            setTimeout(() => {
-                this.sceneText.setText("All the hamsters are gone...");
-                this.phaseText();
-            }, this.fadeDuration * 4);
-
-            setTimeout(() => {
-                this.sceneText.setText("The world mourns their loss...");
-                this.phaseText();
-            }, this.fadeDuration * 8);
-
-            setTimeout(() => {
-                this.sceneText.setText("Will anyone remember them?");
-                this.phaseText();
-            }, this.fadeDuration * 10);
-
-            endCondition = "";
-        }
-
-
+  }
 }

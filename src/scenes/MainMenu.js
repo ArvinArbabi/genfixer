@@ -1,54 +1,62 @@
 class MainMenu extends Phaser.Scene {
-    constructor() {
-        super("menuScene")
+  constructor() {
+    super("menuScene");
+  }
+
+  create() {
+    const { width, height } = this.scale;
+
+    // ---- Title & Tagline ----
+    this.add.text(width/2, 120, "GENFIXER", {
+      fontSize: "72px",
+      color: "#ffffff",
+      fontStyle: "bold",
+      fontFamily: "monospace",
+    }).setOrigin(0.5);
+
+    this.add.text(width/2, 175, "A Competitive Generator Repair Game", {
+      fontSize: "22px",
+      color: "#cccccc",
+    }).setOrigin(0.5);
+
+    // ---- Rules ----
+    const rules = [
+      "⚙️ Both players repair at the same time.",
+      "⌛ You have 3 seconds to press your shown key each time.",
+      "❌ Wrong key or timeout ends the game immediately.",
+      "🏆 First to 15 points fixes their generator and wins!"
+    ];
+    this.add.text(width/2, 245, rules.join("\n"), {
+      fontSize: "20px",
+      color: "#bbbbbb",
+      align: "center",
+      lineSpacing: 8,
+    }).setOrigin(0.5);
+
+    // ---- Controls hint ----
+    this.add.text(width/2, 385, "Player 1 keys: A / S / D     •     Player 2 keys: J / K / L", {
+      fontSize: "20px",
+      color: "#a0c4ff",
+    }).setOrigin(0.5);
+
+    // ---- Start prompt ----
+    this.add.text(width/2, height - 120, "Press SPACE to Start", {
+      fontSize: "32px",
+      color: "#caffbf",
+    }).setOrigin(0.5);
+
+    this.add.text(width/2, height - 80, "Timers arm on the first valid key press.", {
+      fontSize: "18px",
+      color: "#dddddd",
+    }).setOrigin(0.5);
+
+    // Input
+    this.keySpace = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+  }
+
+  update() {
+    if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+      this.scene.start("playScene");
     }
-
-    create() {
-        const w = this.cameras.main.width;
-        const h = this.cameras.main.height;
-
-        const title = this.add.text(w / 2, h * 0.18, "HAMSTER TRUST — How to Play", {
-            fontSize: '36px',
-            color: '#ffffff',
-            fontFamily: 'Arial',
-        }).setOrigin(0.5);
-
-        const rulesText =
-            "• This is a game of trust.\n\n" +
-            "• Each round there is one hamster.\n" +
-            "• Your goal is to finish with more hamsters than the other player.\n\n" +
-            "Choices each round:\n" +
-            "  - SHARE: You offer to share the hamster.\n" +
-            "  - STEAL: You try to take the hamster.\n\n" +
-            "Outcomes:\n" +
-            "  - Both STEAL → The game ends immediately. Nobody wins.\n" +
-            "  - Both SHARE → No one gets the hamster this round.\n" +
-            "  - One STEAL + One SHARE → The STEALER gets the hamster.\n\n" +
-            "Strategy tip: You want to STEAL when the other player SHAREs.";
-
-        this.add.text(w * 0.1, h * 0.28, rulesText, {
-            fontSize: '20px',
-            color: '#dddddd',
-            fontFamily: 'Arial',
-            wordWrap: { width: w * 0.8 },
-            align: 'left',
-            lineSpacing: 8
-        });
-
-        const playButton = this.add.text(w / 2, h * 0.85, 'play', {
-            fontSize: '32px',
-            fill: '#fff',
-            fontFamily: 'Arial',
-            padding: { x: 20, y: 10 },
-            backgroundColor: '#333',
-        }).setOrigin(0.5).setInteractive();
-
-        playButton.on('pointerdown', () => {
-            this.scene.start('playScene');
-        });
-    }
-
-    update() {
-
-    }
+  }
 }
