@@ -1,26 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Template</title>
-    <script src="./lib/phaser.js"></script>
-    <script src="./src/scenes/MainMenu.js"></script>
-    <script src="./src/scenes/Play.js"></script>
-    <script src="./src/scenes/GameEnd.js"></script>
-    <script src="./src/main.js"></script>
-    <style>
-        body {
-            background-color: beige;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>genfix</title>
 
+  <!-- Phaser from CDN (so GitHub Pages doesn't need /lib/phaser.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
 
+  <!-- Your scenes -->
+  <script src="./src/scenes/MainMenu.js"></script>
+  <script src="./src/scenes/Play.js"></script>
+  <script src="./src/scenes/GameEnd.js"></script>
+
+  <!-- Your game boot file (note: at repo root, not in /src) -->
+  <script src="./main.js"></script>
+
+  <style>
+    body { background-color: beige; margin: 0; }
+    canvas { display: block; margin: 0 auto; }
+  </style>
 </head>
-
 <body>
-    <!-- Phaser will handle the <body> tag for us 💪 -->
+  <!-- Phaser will inject the canvas -->
 </body>
-
 </html>
