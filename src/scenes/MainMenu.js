@@ -23,7 +23,7 @@ class MainMenu extends Phaser.Scene {
     const rules = [
       "⚙️ Both players repair at the same time.",
       "⌛ You have 3 seconds to press your shown key each time.",
-      "❌ Wrong key or timeout ends the game immediately.",
+      "❌ Wrong key or timeout makes you lose a life and get stunned briefly.",
       "🏆 First to 15 points fixes their generator and wins!"
     ];
     this.add.text(width/2, 245, rules.join("\n"), {
