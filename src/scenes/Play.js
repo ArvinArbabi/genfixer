@@ -130,59 +130,79 @@ class Play extends Phaser.Scene {
   }
 
   // robust penalty that ignores spam
-  penalize(side, reason){
-    if (this.gameOver) return;
-    const DELAY = 800;
-    const victim = side==="P1"?this.p1:this.p2;
+  penalize(side, reason) {
+  if (this.gameOver) return;
+  const DELAY = 800;
+  const victim = side === "P1" ? this.p1 : this.p2;
 
-    // ignore if already handling a penalty for this player
-    if (victim.isStunned) return;
-    victim.isStunned = true;
+  // Ignore if already handling a penalty
+  if (victim.isStunned) return;
+  victim.isStunned = true;
 
-    // ❗ take the life immediately (fixes “first few don't count”)
-    victim.lives = Math.max(0, victim.lives - 1);
-    this.updateLivesText(victim);
+  // Take the life immediately
+  victim.lives = Math.max(0, victim.lives - 1);
+  this.updateLivesText(victim);
 
-    // visual/sfx
-    if (victim.gen && victim.gen.visible) victim.gen.setVisible(false);
-    if (victim.boom) victim.boom.destroy();
-    victim.boom = this.add.sprite(victim.gen.x, victim.gen.y, "Blast")
-      .setOrigin(0.5).setScale(this.explosionScale).setDepth(10);
-    victim.boom.play("blast_once");
-    this.boomSfx.play();
+  // Hide generator + play explosion
+  if (victim.gen && victim.gen.visible) victim.gen.setVisible(false);
+  if (victim.boom) victim.boom.destroy();
+  victim.boom = this.add.sprite(victim.gen.x, victim.gen.y, "Blast")
+    .setOrigin(0.5)
+    .setScale(this.explosionScale)
+    .setDepth(10);
 
-    const halfX = side==="P1" ? this.scale.width*0.25 : this.scale.width*0.75;
-    const overlay = this.add.rectangle(
-      halfX, this.scale.height/2, this.scale.width/2, this.scale.height, 0xff0000, 0.25
-    ).setDepth(9);
+  victim.boom.play("blast_once");
+  this.boomSfx.play();
 
-    // keep timers fair while anim plays
-    if (this.started) {
-      if (this.p1.deadline) this.p1.deadline += DELAY;
-      if (this.p2.deadline) this.p2.deadline += DELAY;
-    }
+  // ✅ Destroy explosion sprite once animation completes
+  victim.boom.on("animationcomplete", () => {
+    victim.boom.destroy();
+  });
 
-    // if out of lives: show obvious banner & end
-    if (victim.lives === 0) {
-      const big = this.add.text(halfX, 200, `${side} LOST`, {
-        fontSize: "64px", color: "#ff4d4d", fontStyle: "bold"
-      }).setOrigin(0.5).setDepth(11);
-      this.time.delayedCall(DELAY, () => {
-        overlay.destroy();
-        this.finishMatch(`${side} is out of lives! ${side==="P1"?"Player 2":"Player 1"} wins!`, 600);
-      });
-      return;
-    }
+  // Red flash overlay
+  const halfX = side === "P1" ? this.scale.width * 0.25 : this.scale.width * 0.75;
+  const overlay = this.add.rectangle(
+    halfX,
+    this.scale.height / 2,
+    this.scale.width / 2,
+    this.scale.height,
+    0xff0000,
+    0.25
+  ).setDepth(9);
 
-    // otherwise recover after delay
+  // Extend timers a bit so no unfair timeout
+  if (this.started) {
+    if (this.p1.deadline) this.p1.deadline += DELAY;
+    if (this.p2.deadline) this.p2.deadline += DELAY;
+  }
+
+  // If out of lives → end
+  if (victim.lives === 0) {
+    const big = this.add.text(halfX, 200, `${side} LOST`, {
+      fontSize: "64px",
+      color: "#ff4d4d",
+      fontStyle: "bold",
+    }).setOrigin(0.5).setDepth(11);
     this.time.delayedCall(DELAY, () => {
       overlay.destroy();
-      if (victim.gen) victim.gen.setVisible(true);
-      this.setPrompt(side);
-      this.resetTimer(side);
-      victim.isStunned = false;
+      this.finishMatch(
+        `${side} is out of lives! ${side === "P1" ? "Player 2" : "Player 1"} wins!`,
+        600
+      );
     });
+    return;
   }
+
+  // Otherwise, recover
+  this.time.delayedCall(DELAY, () => {
+    overlay.destroy();
+    if (victim.gen) victim.gen.setVisible(true);
+    this.setPrompt(side);
+    this.resetTimer(side);
+    victim.isStunned = false;
+  });
+}
+
 
   // --- Input ---
   onKeyDown(e){
